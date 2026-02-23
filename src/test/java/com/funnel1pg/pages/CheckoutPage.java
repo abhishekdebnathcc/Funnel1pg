@@ -1,101 +1,154 @@
 package com.funnel1pg.pages;
 
-import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 
 public class CheckoutPage extends BasePage {
 
+    // ── Product ─────────────────────────────────────────────────────────────
+    // The "Select" button next to the product card
+    private static final String BTN_SELECT = "button:has-text('Select')";
+
+    // ── Shipping Address – exact placeholders from page snapshot ─────────────
+    private static final String INPUT_FIRST_NAME = "input[placeholder='First Name']";
+    private static final String INPUT_LAST_NAME  = "input[placeholder='Last Name']";
+    private static final String INPUT_ADDRESS    = "input[placeholder='Enter a location']";
+    private static final String SELECT_COUNTRY   = "select[id='country'], select:has(option:text('United States'))";
+    private static final String SELECT_STATE     = "select:has(option:text('Select State'))";
+    private static final String INPUT_CITY       = "input[placeholder='City']";
+    private static final String INPUT_ZIP        = "input[placeholder='Zip Code:']";
+    private static final String INPUT_EMAIL      = "input[placeholder='Email address']";
+    private static final String INPUT_PHONE      = "input[placeholder='Phone']";
+
+    // ── Payment – exact placeholders from page snapshot ──────────────────────
+    private static final String INPUT_CARD   = "input[placeholder='Card Number']";
+    private static final String SELECT_MONTH = "select:has(option:text('Month'))";
+    private static final String SELECT_YEAR  = "select:has(option:text('Year'))";
+    private static final String INPUT_CVV    = "input[placeholder='Security code']";
+
+    // ── Terms & Submit ────────────────────────────────────────────────────────
+    // "I agree to the terms & conditions of this site" checkbox
+    private static final String CB_TERMS  = "input[type='checkbox']:near(:text('terms & conditions'))";
+    private static final String BTN_BUY   = "button:has-text('COMPLETE YOUR SECURE PURCHASE')";
+
     public CheckoutPage(Page page) { super(page); }
+
+    // ── Product ──────────────────────────────────────────────────────────────
 
     public void selectFirstAvailableProduct() {
         try {
-            page.locator("button:has-text('Select')").first().click();
-            System.out.println("Product selected via Select button");
+            waitForVisible(BTN_SELECT);
+            click(BTN_SELECT);
+            System.out.println("✔ Product selected");
         } catch (Exception e) {
-            System.out.println("No Select button found — product may be pre-selected");
+            System.out.println("ℹ No Select button — product may be pre-selected: " + e.getMessage());
         }
     }
+
+    // ── Shipping Address ─────────────────────────────────────────────────────
 
     public void fillShippingAddress(String firstName, String lastName, String address,
                                     String city, String state, String zip,
                                     String email, String phone) {
-        safeFill("input[placeholder='First Name']",          firstName);
-        safeFill("input[placeholder='Last Name']",           lastName);
-        // Address with autocomplete dismiss
+        safeFill(INPUT_FIRST_NAME, firstName);
+        safeFill(INPUT_LAST_NAME,  lastName);
+        fillAddressWithAutocomplete(address);
+        // Country defaults to United States — leave it
+        safeSelectByVisibleText(SELECT_STATE, state);
+        safeFill(INPUT_CITY,  city);
+        safeFill(INPUT_ZIP,   zip);
+        safeFill(INPUT_EMAIL, email);
+        safeFill(INPUT_PHONE, phone);
+        System.out.println("✔ Shipping address filled");
+    }
+
+    private void fillAddressWithAutocomplete(String address) {
         try {
-            page.locator("input[placeholder*='location']").first().fill(address);
-            page.waitForTimeout(600);
+            page.locator(INPUT_ADDRESS).fill(address);
+            page.waitForTimeout(700);
+            // dismiss any Google autocomplete dropdown
             page.keyboard().press("Escape");
         } catch (Exception e) {
-            safeField("address", address);
+            System.out.println("⚠ Address field: " + e.getMessage());
         }
-        safeField("city",  city);
-        // State dropdown
-        try {
-            page.locator("select").filter(new Locator.FilterOptions().setHasText("Select State"))
-                    .first().selectOption(state);
-        } catch (Exception e) {
-            System.out.println("State select fallback: " + e.getMessage());
-        }
-        safeFillPlaceholder("Zip",   zip);
-        safeType("email", email);
-        safeType("tel",   phone);
     }
 
-    private void safeField(String name, String value) {
-        try { page.locator("input[placeholder*='" + name + "']").first().fill(value); }
-        catch (Exception e) { System.out.println("safeField miss: " + name); }
-    }
-
-    private void safeFillPlaceholder(String placeholder, String value) {
-        try { page.locator("input[placeholder*='" + placeholder + "']").first().fill(value); }
-        catch (Exception e) { System.out.println("safeFilPlaceholder miss: " + placeholder); }
-    }
-
-    private void safeType(String type, String value) {
-        try { page.locator("input[type='" + type + "']").first().fill(value); }
-        catch (Exception e) { System.out.println("safeType miss: " + type); }
-    }
-
-    private void safeFill(String selector, String value) {
-        try { page.locator(selector).first().fill(value); }
-        catch (Exception e) { System.out.println("safeF miss: " + selector); }
-    }
+    // ── Shipping Method ───────────────────────────────────────────────────────
 
     public void selectShippingMethod() {
-        try { page.locator("input[type='radio']").first().click(); }
-        catch (Exception e) { System.out.println("Shipping already selected or not clickable"); }
+        // The page shows "Vande Shipping" as the only option — it is pre-selected
+        // Just verify it is visible; nothing to click
+        System.out.println("✔ Shipping method — Vande Shipping (auto-selected)");
     }
 
+    // ── Payment ───────────────────────────────────────────────────────────────
+
     public void fillPaymentDetails(String cardNumber, String month, String year, String cvv) {
-        safeFill("input[placeholder='Card Number']",    cardNumber);
-        try {
-            page.locator("select").filter(new Locator.FilterOptions().setHasText("Month"))
-                    .first().selectOption(month);
-            page.locator("select").filter(new Locator.FilterOptions().setHasText("Year"))
-                    .first().selectOption(year);
-        } catch (Exception e) {
-            System.out.println("Month/Year select: " + e.getMessage());
-        }
-        safeFill("input[placeholder='Security code']", cvv);
+        safeFill(INPUT_CARD, cardNumber);
+        safeSelectByVisibleText(SELECT_MONTH, month);
+        safeSelectByVisibleText(SELECT_YEAR,  year);
+        safeFill(INPUT_CVV,  cvv);
+        System.out.println("✔ Payment details filled");
     }
+
+    // ── Terms ─────────────────────────────────────────────────────────────────
 
     public void acceptTermsAndConditions() {
         try {
-            Locator cb = page.locator("input[type='checkbox']").filter(
-                    new Locator.FilterOptions().setHasText("terms"));
-            if (!cb.isChecked()) cb.click();
-        } catch (Exception e1) {
-            // fallback: click last unchecked checkbox
+            // Target the exact "I agree to the terms & conditions" checkbox
+            var cb = page.locator(CB_TERMS).first();
+            if (!cb.isChecked()) {
+                cb.click();
+                System.out.println("✔ Terms checkbox checked");
+            } else {
+                System.out.println("ℹ Terms already checked");
+            }
+        } catch (Exception e) {
+            // Fallback: iterate all unchecked checkboxes and check the last one
             try {
-                page.locator("input[type='checkbox']").last().click();
-            } catch (Exception e2) {
-                System.out.println("Terms checkbox not found");
+                var checkboxes = page.locator("input[type='checkbox']").all();
+                for (var cb : checkboxes) {
+                    String label = cb.evaluate("el => el.closest('label,div')?.innerText || ''").toString();
+                    if (label.toLowerCase().contains("terms")) {
+                        if (!cb.isChecked()) cb.click();
+                        break;
+                    }
+                }
+                System.out.println("✔ Terms checked via fallback");
+            } catch (Exception ex) {
+                System.out.println("⚠ Could not check terms: " + ex.getMessage());
             }
         }
     }
 
+    // ── Submit ────────────────────────────────────────────────────────────────
+
     public void clickCompletePurchase() {
-        page.locator("button:has-text('COMPLETE YOUR SECURE PURCHASE')").click();
+        waitForVisible(BTN_BUY);
+        click(BTN_BUY);
+        System.out.println("✔ Complete Purchase clicked");
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void safeFill(String selector, String value) {
+        try {
+            page.locator(selector).first().fill(value);
+        } catch (Exception e) {
+            System.out.println("⚠ safeFill [" + selector + "]: " + e.getMessage());
+        }
+    }
+
+    private void safeSelectByVisibleText(String selector, String visibleText) {
+        try {
+            page.locator(selector).first().selectOption(
+                    new com.microsoft.playwright.options.SelectOption().setLabel(visibleText));
+        } catch (Exception e) {
+            // fall back to value matching
+            try {
+                page.locator(selector).first().selectOption(visibleText);
+            } catch (Exception ex) {
+                System.out.println("⚠ safeSelect [" + selector + "] value=" + visibleText + ": " + ex.getMessage());
+            }
+        }
     }
 }

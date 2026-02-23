@@ -1,27 +1,45 @@
 package com.funnel1pg.pages;
 
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import java.util.List;
 
 public class UpsellPage extends BasePage {
 
-    private static final String DECLINE_BTN =
-            "button:has-text('No'), a:has-text('No'), " +
-            "button:has-text('Skip'), a:has-text('Skip'), " +
-            "a:has-text('No thanks'), a:has-text('No, I'), " +
-            "[class*='decline'], [class*='no-btn']";
+    // Accept buttons — common patterns across upsell pages
+    private static final String ACCEPT_BTNS =
+            "button:has-text('YES'), a:has-text('YES'), " +
+            "button:has-text('Add to'), a:has-text('Add to'), " +
+            "button:has-text('Upgrade'), a:has-text('Upgrade'), " +
+            "button:has-text('Get'), " +
+            "[class*='yes'][class*='btn'], [class*='accept']";
 
-    private static final String ACCEPT_BTN =
-            "button:has-text('Yes'), a:has-text('Yes'), " +
-            "button:has-text('Add'), a:has-text('Add to my order'), " +
-            "button:has-text('Upgrade'), [class*='accept'], [class*='yes-btn']";
+    // Decline buttons — common patterns across upsell pages
+    private static final String DECLINE_BTNS =
+            "button:has-text('NO'), a:has-text('NO'), " +
+            "button:has-text('No thanks'), a:has-text('No thanks'), " +
+            "button:has-text('Skip'), a:has-text('Skip'), " +
+            "a:has-text('No, I'), " +
+            "[class*='no'][class*='btn'], [class*='decline']";
+
+    // Thank-you page indicators
+    private static final String THANKYOU_HEADING =
+            "h1:has-text('Thank'), h2:has-text('Thank'), " +
+            "h1:has-text('Order Confirmed'), h2:has-text('Order Confirmed'), " +
+            "h1:has-text('Success'), .thank-you-title";
 
     public UpsellPage(Page page) { super(page); }
 
+    // ── Page Detection ────────────────────────────────────────────────────────
+
     public boolean isUpsellPage() {
         String url = getCurrentUrl().toLowerCase();
-        return url.contains("upsell") || url.contains("oto") ||
-               url.contains("offer")  || url.contains("upgrade") ||
-               hasUpsellButtons();
+        if (url.contains("upsell") || url.contains("oto") ||
+            url.contains("offer")  || url.contains("upgrade")) return true;
+        try {
+            List<Locator> btns = page.locator(DECLINE_BTNS + ", " + ACCEPT_BTNS).all();
+            return !btns.isEmpty() && btns.get(0).isVisible();
+        } catch (Exception e) { return false; }
     }
 
     public boolean isThankYouPage() {
@@ -29,40 +47,58 @@ public class UpsellPage extends BasePage {
         if (url.contains("thank") || url.contains("confirm") ||
             url.contains("success") || url.contains("receipt")) return true;
         try {
-            return page.locator("h1, h2").filter(
-                    new com.microsoft.playwright.Locator.FilterOptions()
-                    .setHasText("Thank")).count() > 0;
+            return page.locator(THANKYOU_HEADING).count() > 0;
         } catch (Exception e) { return false; }
     }
 
-    private boolean hasUpsellButtons() {
-        try {
-            return page.locator(DECLINE_BTN + ", " + ACCEPT_BTN).first().isVisible();
-        } catch (Exception e) { return false; }
-    }
+    // ── Navigation ────────────────────────────────────────────────────────────
 
     public void declineOffer() {
         try {
-            page.locator(DECLINE_BTN).first().click();
-            System.out.println("Declined upsell on: " + getCurrentUrl());
+            page.locator(DECLINE_BTNS).first().click();
+            System.out.println("✔ Declined upsell on: " + getCurrentUrl());
         } catch (Exception e) {
-            System.out.println("No decline button — trying accept: " + getCurrentUrl());
-            try { page.locator(ACCEPT_BTN).first().click(); }
-            catch (Exception ex) { System.out.println("No upsell buttons found"); }
+            System.out.println("⚠ No decline btn — trying accept on: " + getCurrentUrl());
+            try {
+                page.locator(ACCEPT_BTNS).first().click();
+                System.out.println("✔ Accepted (fallback) on: " + getCurrentUrl());
+            } catch (Exception ex) {
+                System.out.println("⚠ No upsell buttons found: " + ex.getMessage());
+            }
         }
     }
 
+    /**
+     * Walk through every upsell page, declining each offer, until we reach
+     * the thank-you page or run out of upsell pages (max 5).
+     */
     public void navigateThroughAllUpsells() {
         int max = 5, count = 0;
-        while (count < max && !isThankYouPage()) {
-            if (!isUpsellPage()) break;
+        while (count < max) {
             page.waitForLoadState();
-            String from = getCurrentUrl();
+            System.out.println("→ [" + count + "] Current URL: " + getCurrentUrl());
+
+            if (isThankYouPage()) {
+                System.out.println("✔ Thank-you page reached after " + count + " upsell(s)");
+                break;
+            }
+            if (!isUpsellPage()) {
+                System.out.println("ℹ No upsell detected — exiting loop");
+                break;
+            }
+
+            String before = getCurrentUrl();
             declineOffer();
-            page.waitForTimeout(2500);
-            page.waitForLoadState();
-            System.out.println("Upsell " + (++count) + " processed: " + from);
+
+            // Wait for navigation away from current upsell
+            try {
+                page.waitForURL(url -> !url.equals(before),
+                        new Page.WaitForURLOptions().setTimeout(10_000));
+            } catch (Exception e) {
+                page.waitForTimeout(3000);
+            }
+            count++;
         }
-        System.out.println("Post-upsell URL: " + getCurrentUrl());
+        System.out.println("✔ Upsell navigation done. Final URL: " + getCurrentUrl());
     }
 }

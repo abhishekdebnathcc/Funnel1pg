@@ -6,31 +6,49 @@ import com.microsoft.playwright.Page;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.Scenario;
+
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class Hooks {
 
-    @Before
+    @Before(order = 1)
     public void setUp(Scenario scenario) {
-        System.out.println("▶ " + scenario.getName());
+        System.out.println("\n══════════════════════════════════════════");
+        System.out.println("▶ SCENARIO : " + scenario.getName());
+        System.out.println("  TAGS     : " + scenario.getSourceTagNames());
+        System.out.println("══════════════════════════════════════════");
+
         PlaywrightManager.initBrowser();
-        try { Files.createDirectories(Paths.get(ConfigReader.getReportsDir() + "/screenshots")); }
-        catch (Exception ignored) {}
+
+        // Ensure screenshots dir exists
+        try {
+            Path screenshotsDir = Paths.get(ConfigReader.getReportsDir(), "screenshots");
+            Files.createDirectories(screenshotsDir);
+        } catch (Exception e) {
+            System.out.println("⚠ Could not create screenshots dir: " + e.getMessage());
+        }
     }
 
-    @After
+    @After(order = 1)
     public void tearDown(Scenario scenario) {
+        // Capture screenshot on failure and embed in Cucumber report
         if (scenario.isFailed() && ConfigReader.isScreenshotOnFailure()) {
             try {
                 byte[] png = PlaywrightManager.getPage()
                         .screenshot(new Page.ScreenshotOptions().setFullPage(true));
-                scenario.attach(png, "image/png", "Failure – " + scenario.getName());
+                scenario.attach(png, "image/png",
+                        "Screenshot on failure: " + scenario.getName());
+                System.out.println("📸 Failure screenshot captured");
             } catch (Exception e) {
-                System.out.println("Screenshot failed: " + e.getMessage());
+                System.out.println("⚠ Screenshot failed: " + e.getMessage());
             }
         }
-        System.out.println((scenario.isFailed() ? "❌ FAILED" : "✅ PASSED") + ": " + scenario.getName());
+
+        String icon = scenario.isFailed() ? "❌ FAILED" : "✅ PASSED";
+        System.out.println(icon + " : " + scenario.getName() + "\n");
+
         PlaywrightManager.closeBrowser();
     }
 }

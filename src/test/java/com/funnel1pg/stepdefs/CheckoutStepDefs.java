@@ -30,7 +30,7 @@ public class CheckoutStepDefs {
         init();
         page.navigate(ConfigReader.getBaseUrl());
         page.waitForLoadState();
-        System.out.println("URL: " + page.url());
+        System.out.println("🌐 Loaded: " + page.url());
     }
 
     @When("I select a product on the main page")
@@ -53,7 +53,9 @@ public class CheckoutStepDefs {
     }
 
     @When("I select a shipping method")
-    public void selectShipping() { checkoutPage.selectShippingMethod(); }
+    public void selectShipping() {
+        checkoutPage.selectShippingMethod();
+    }
 
     @When("I fill in the payment details with test card")
     public void fillPayment() {
@@ -66,37 +68,51 @@ public class CheckoutStepDefs {
     }
 
     @When("I accept the terms and conditions")
-    public void acceptTerms() { checkoutPage.acceptTermsAndConditions(); }
+    public void acceptTerms() {
+        checkoutPage.acceptTermsAndConditions();
+    }
 
     @When("I click the complete purchase button")
     public void clickPurchase() {
         checkoutPage.clickCompletePurchase();
-        page.waitForLoadState();
-        page.waitForTimeout(3000);
-        System.out.println("Post-purchase URL: " + page.url());
+        // Wait for post-purchase navigation / processing
+        try {
+            page.waitForURL(url -> !url.contains("checkout"),
+                    new Page.WaitForURLOptions().setTimeout(15_000));
+        } catch (Exception e) {
+            // May stay on same domain — just wait for network idle
+            page.waitForLoadState();
+            page.waitForTimeout(3000);
+        }
+        System.out.println("🔄 Post-purchase URL: " + page.url());
     }
 
     @Then("I should be taken to an upsell page or thank you page")
     public void verifyPostPurchasePage() {
-        boolean advanced = upsellPage.isUpsellPage() || thankYouPage.isThankYouPageDisplayed()
-                || !page.url().equals(ConfigReader.getBaseUrl());
-        assertTrue(advanced, "Expected upsell or thank-you page, got: " + page.url());
+        boolean moved = upsellPage.isUpsellPage() || thankYouPage.isThankYouPageDisplayed()
+                || !page.url().contains("checkout");
+        System.out.println("📍 After purchase URL: " + page.url());
+        assertTrue(moved,
+                "Expected upsell or thank-you page after purchase, but still on: " + page.url());
     }
 
     @And("I navigate through any upsell pages")
     public void navigateUpsells() {
         if (!thankYouPage.isThankYouPageDisplayed()) {
             upsellPage.navigateThroughAllUpsells();
+        } else {
+            System.out.println("ℹ Already on thank-you page — no upsells to navigate");
         }
     }
 
     @Then("I should land on the thank you page")
     public void verifyThankYouPage() {
         page.waitForLoadState();
-        System.out.println("Final URL: " + page.url());
-        System.out.println("Heading:   " + thankYouPage.getHeading());
-        assertTrue(thankYouPage.isThankYouPageDisplayed(),
-                "Expected Thank You page but got: " + page.url());
-        System.out.println("✅ Order complete — Thank You page confirmed!");
+        boolean onThankYou = thankYouPage.isThankYouPageDisplayed();
+        System.out.println("📍 Final URL   : " + page.url());
+        System.out.println("📄 Page heading: " + thankYouPage.getHeading());
+        assertTrue(onThankYou,
+                "Expected Thank You page but landed on: " + page.url());
+        System.out.println("🎉 ORDER COMPLETE — Thank You page confirmed!");
     }
 }
