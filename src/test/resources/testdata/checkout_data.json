@@ -1,0 +1,19 @@
+{
+  "customer": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "johndoe.test@mailinator.com",
+    "phone": "5559876543",
+    "address": "123 Test Street",
+    "city": "Austin",
+    "state": "Texas",
+    "zipCode": "78701",
+    "country": "United States"
+  },
+  "payment": {
+    "cardNumber": "4111111111111111",
+    "expiryMonth": "(01) January",
+    "expiryYear": "2030",
+    "cvv": "123"
+  }
+}
