@@ -11,6 +11,7 @@
     "country": "United States"
   },
   "payment": {
+    "cardType": "visa",
     "cardNumber": "4111111111111111",
     "expiryMonth": "(01) January",
     "expiryYear": "2030",
