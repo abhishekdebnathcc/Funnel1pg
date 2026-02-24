@@ -13,7 +13,6 @@ import io.cucumber.java.Scenario;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
 
 public class Hooks {
 
@@ -26,12 +25,10 @@ public class Hooks {
 
         PlaywrightManager.initBrowser();
 
-        // Init ExtentTest for this scenario
-        String tags = scenario.getSourceTagNames().toString();
-        ExtentReportManager.createTest(scenario.getName(),
-                "Tags: " + tags + " | Feature: " + scenario.getUri());
+        ExtentReportManager.createTest(
+                scenario.getName(),
+                "Tags: " + scenario.getSourceTagNames() + " | URI: " + scenario.getUri());
 
-        // Ensure reports/screenshots dir exists
         try {
             Path dir = Paths.get(ConfigReader.getReportsDir(), "screenshots");
             Files.createDirectories(dir);
@@ -45,35 +42,41 @@ public class Hooks {
         var extentTest = ExtentReportManager.getTest();
 
         if (scenario.isFailed()) {
-            // Screenshot embedded in Cucumber HTML report
             if (ConfigReader.isScreenshotOnFailure()) {
                 try {
                     byte[] png = PlaywrightManager.getPage()
                             .screenshot(new Page.ScreenshotOptions().setFullPage(true));
+
+                    // Attach to Cucumber HTML report
                     scenario.attach(png, "image/png",
                             "Failure screenshot: " + scenario.getName());
 
-                    // Also save to disk and log in Extent
+                    // Save to disk
                     String safeName = scenario.getName().replaceAll("[^a-zA-Z0-9]", "_");
                     String filePath = ConfigReader.getReportsDir()
                             + "/screenshots/" + safeName + "_FAILED.png";
                     Files.write(Paths.get(filePath), png);
 
+                    // Log path in ExtentReports
                     if (extentTest != null) {
                         extentTest.addScreenCaptureFromPath(filePath, "Failure Screenshot");
                     }
-                    System.out.println("📸 Failure screenshot saved: " + filePath);
+                    System.out.println("📸 Screenshot: " + filePath);
                 } catch (Exception e) {
                     System.out.println("⚠ Screenshot failed: " + e.getMessage());
                 }
             }
-            if (extentTest != null) extentTest.log(Status.FAIL, "Scenario FAILED: " + scenario.getName());
+            if (extentTest != null) {
+                extentTest.log(Status.FAIL, "Scenario FAILED: " + scenario.getName());
+            }
         } else {
-            if (extentTest != null) extentTest.log(Status.PASS, "Scenario PASSED");
+            if (extentTest != null) {
+                extentTest.log(Status.PASS, "Scenario PASSED");
+            }
         }
 
-        String icon = scenario.isFailed() ? "❌ FAILED" : "✅ PASSED";
-        System.out.println(icon + " : " + scenario.getName() + "\n");
+        System.out.println((scenario.isFailed() ? "❌ FAILED" : "✅ PASSED")
+                + " : " + scenario.getName() + "\n");
 
         PlaywrightManager.closeBrowser();
     }
@@ -81,6 +84,6 @@ public class Hooks {
     @AfterAll
     public static void afterAll() {
         ExtentReportManager.flushReports();
-        System.out.println("📊 Extent report flushed to reports/extent-report.html");
+        System.out.println("📊 Extent report saved → reports/extent-report.html");
     }
 }

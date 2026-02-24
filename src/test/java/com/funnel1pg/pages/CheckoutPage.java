@@ -11,39 +11,35 @@ public class CheckoutPage extends BasePage {
     // ── Product ───────────────────────────────────────────────────────────────
     private static final String BTN_SELECT = "button:has-text('Select')";
 
-    // ── Shipping Address ──────────────────────────────────────────────────────
+    // ── Shipping Address (exact placeholders from live page) ──────────────────
     private static final String INPUT_FIRST_NAME = "input[placeholder='First Name']";
     private static final String INPUT_LAST_NAME  = "input[placeholder='Last Name']";
     private static final String INPUT_ADDRESS    = "input[placeholder='Enter a location']";
-    private static final String SELECT_STATE     = "select:has(option:text-is('Select State'))";
+    // NOTE: :text-is() inside :has() is not valid — use nth-of-type or id instead
+    private static final String SELECT_STATE     = "select#State, select[name='state'], select:nth-of-type(2)";
     private static final String INPUT_CITY       = "input[placeholder='City']";
     private static final String INPUT_ZIP        = "input[placeholder='Zip Code:']";
     private static final String INPUT_EMAIL      = "input[placeholder='Email address']";
     private static final String INPUT_PHONE      = "input[placeholder='Phone']";
 
-    // ── Payment ───────────────────────────────────────────────────────────────
+    // ── Payment (exact placeholders from live page) ───────────────────────────
     private static final String INPUT_CARD   = "input[placeholder='Card Number']";
-    private static final String SELECT_MONTH = "select:has(option:text-is('Month'))";
-    private static final String SELECT_YEAR  = "select:has(option:text-is('Year'))";
     private static final String INPUT_CVV    = "input[placeholder='Security code']";
+    // Month/Year: first and second <select> without a placeholder option
+    // They are the only two selects in the payment block
+    private static final String SELECT_MONTH = "select#month, select[name='month']";
+    private static final String SELECT_YEAR  = "select#year, select[name='year']";
 
     // ── Terms & Submit ────────────────────────────────────────────────────────
     private static final String BTN_BUY = "button:has-text('COMPLETE YOUR SECURE PURCHASE')";
 
-    // ── Validation selectors ──────────────────────────────────────────────────
-    // Common error patterns: red borders, error messages, required field hints
+    // ── Validation error selectors ────────────────────────────────────────────
     private static final String VALIDATION_ERRORS =
-            ".error, .invalid, .field-error, [class*='error'], " +
-            "[class*='invalid'], .form-error, " +
-            "input:invalid, select:invalid, " +
-            ":text('required'), :text('Required'), " +
-            ":text('Please enter'), :text('cannot be blank')";
+            ".error, .invalid, .field-error, [class*='error-msg'], [class*='validation']";
 
     private static final String PAYMENT_ERRORS =
-            ":text('invalid card'), :text('Invalid card'), :text('card number'), " +
-            ":text('Card Number'), :text('declined'), :text('Declined'), " +
-            ":text('payment'), :text('Payment'), [class*='card-error'], " +
-            ".payment-error, [class*='payment-error']";
+            "[class*='card-error'], [class*='payment-error'], " +
+            "[class*='decline'], [class*='error']";
 
     public CheckoutPage(Page page) { super(page); }
 
@@ -51,8 +47,9 @@ public class CheckoutPage extends BasePage {
 
     public void selectFirstAvailableProduct() {
         try {
-            waitForVisible(BTN_SELECT);
+            waitForVisible(BTN_SELECT, 5_000);
             click(BTN_SELECT);
+            System.out.println("✔ Product selected");
         } catch (Exception e) {
             System.out.println("ℹ No Select button — product may be pre-selected");
         }
@@ -66,7 +63,7 @@ public class CheckoutPage extends BasePage {
         safeFill(INPUT_FIRST_NAME, firstName);
         safeFill(INPUT_LAST_NAME,  lastName);
         fillAddressField(address);
-        safeSelectLabel(SELECT_STATE, state);
+        safeSelectByLabel(state);   // state dropdown
         safeFill(INPUT_CITY,  city);
         safeFill(INPUT_ZIP,   zip);
         safeFill(INPUT_EMAIL, email);
@@ -83,27 +80,74 @@ public class CheckoutPage extends BasePage {
         }
     }
 
+    // ── State Dropdown ────────────────────────────────────────────────────────
+
+    private void safeSelectByLabel(String label) {
+        // Try every <select> on the page and pick the one that has the matching option
+        try {
+            List<Locator> selects = page.locator("select").all();
+            for (Locator select : selects) {
+                try {
+                    // Check if this select has an option matching the label
+                    int count = select.locator("option:has-text('" + label + "')").count();
+                    if (count > 0) {
+                        select.selectOption(new SelectOption().setLabel(label));
+                        System.out.println("✔ Selected [" + label + "] in dropdown");
+                        return;
+                    }
+                } catch (Exception ignored) {}
+            }
+            System.out.println("⚠ Could not find dropdown with option: " + label);
+        } catch (Exception e) {
+            System.out.println("⚠ safeSelectByLabel [" + label + "]: " + e.getMessage());
+        }
+    }
+
     // ── Shipping Method ───────────────────────────────────────────────────────
 
     public void selectShippingMethod() {
-        // Vande Shipping is the only option and pre-selected — nothing to do
-        System.out.println("ℹ Shipping: Vande Shipping pre-selected");
+        System.out.println("ℹ Vande Shipping pre-selected — no action needed");
     }
 
     // ── Payment ───────────────────────────────────────────────────────────────
 
     public void fillPaymentDetails(String cardNumber, String month, String year, String cvv) {
         safeFill(INPUT_CARD, cardNumber);
-        safeSelectLabel(SELECT_MONTH, month);
-        safeSelectLabel(SELECT_YEAR,  year);
+        safeSelectMonthYear(month, year);
         safeFill(INPUT_CVV, cvv);
+    }
+
+    private void safeSelectMonthYear(String month, String year) {
+        // Month and year are <select> elements that contain "Month"/"Year" as first option
+        try {
+            List<Locator> allSelects = page.locator("select").all();
+            boolean monthDone = false;
+            boolean yearDone  = false;
+            for (Locator sel : allSelects) {
+                try {
+                    // Check first option text to identify month or year select
+                    String firstOpt = sel.locator("option").first().textContent().trim();
+                    if (!monthDone && firstOpt.equalsIgnoreCase("Month")) {
+                        sel.selectOption(new SelectOption().setLabel(month));
+                        System.out.println("✔ Month selected: " + month);
+                        monthDone = true;
+                    } else if (!yearDone && firstOpt.equalsIgnoreCase("Year")) {
+                        sel.selectOption(new SelectOption().setLabel(year));
+                        System.out.println("✔ Year selected: " + year);
+                        yearDone = true;
+                    }
+                    if (monthDone && yearDone) break;
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            System.out.println("⚠ safeSelectMonthYear: " + e.getMessage());
+        }
     }
 
     // ── Terms ─────────────────────────────────────────────────────────────────
 
     public void acceptTermsAndConditions() {
         try {
-            // Find the "I agree to the terms & conditions" checkbox specifically
             List<Locator> boxes = page.locator("input[type='checkbox']").all();
             for (Locator cb : boxes) {
                 try {
@@ -116,13 +160,15 @@ public class CheckoutPage extends BasePage {
                     }
                 } catch (Exception ignored) {}
             }
-            // Fallback: last unchecked checkbox is typically the terms one
+            // Fallback: last unchecked checkbox
             for (int i = boxes.size() - 1; i >= 0; i--) {
-                if (!boxes.get(i).isChecked()) {
-                    boxes.get(i).click();
-                    System.out.println("✔ Terms checked via fallback");
-                    return;
-                }
+                try {
+                    if (!boxes.get(i).isChecked()) {
+                        boxes.get(i).click();
+                        System.out.println("✔ Terms checked via fallback");
+                        return;
+                    }
+                } catch (Exception ignored) {}
             }
         } catch (Exception e) {
             System.out.println("⚠ Terms checkbox: " + e.getMessage());
@@ -132,31 +178,24 @@ public class CheckoutPage extends BasePage {
     // ── Submit ────────────────────────────────────────────────────────────────
 
     public void clickCompletePurchase() {
-        waitForVisible(BTN_BUY);
+        waitForVisible(BTN_BUY, 10_000);
         click(BTN_BUY);
+        System.out.println("✔ Complete Purchase clicked");
     }
 
     // ── Validation Checks ─────────────────────────────────────────────────────
 
     public boolean hasValidationErrors() {
         try {
-            // Check for HTML5 native validation (input:invalid)
-            int invalidCount = page.locator("input:invalid, select:invalid").count();
-            if (invalidCount > 0) return true;
-            // Check for custom error message elements
-            int errorMsgCount = page.locator(VALIDATION_ERRORS).count();
-            return errorMsgCount > 0;
-        } catch (Exception e) {
-            return false;
-        }
+            if (page.locator("input:invalid, select:invalid").count() > 0) return true;
+            return page.locator(VALIDATION_ERRORS).count() > 0;
+        } catch (Exception e) { return false; }
     }
 
     public boolean hasPaymentError() {
         try {
             return page.locator(PAYMENT_ERRORS).count() > 0;
-        } catch (Exception e) {
-            return false;
-        }
+        } catch (Exception e) { return false; }
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
@@ -166,19 +205,6 @@ public class CheckoutPage extends BasePage {
             page.locator(selector).first().fill(value);
         } catch (Exception e) {
             System.out.println("⚠ safeFill [" + selector + "]: " + e.getMessage());
-        }
-    }
-
-    private void safeSelectLabel(String selector, String label) {
-        try {
-            page.locator(selector).first()
-                    .selectOption(new SelectOption().setLabel(label));
-        } catch (Exception e) {
-            try {
-                page.locator(selector).first().selectOption(label);
-            } catch (Exception ex) {
-                System.out.println("⚠ safeSelect [" + selector + "] = " + label + ": " + ex.getMessage());
-            }
         }
     }
 }

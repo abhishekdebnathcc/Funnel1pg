@@ -8,9 +8,13 @@ import com.funnel1pg.pages.UpsellPage;
 import com.funnel1pg.utils.ExtentReportManager;
 import com.funnel1pg.utils.PlaywrightManager;
 import com.funnel1pg.utils.TestDataReader;
-import com.funnel1pg.utils.WaitUtils;
 import com.microsoft.playwright.Page;
-import io.cucumber.java.en.*;
+import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
+
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -72,7 +76,7 @@ public class CheckoutStepDefs {
     @When("I select a shipping method")
     public void selectShipping() {
         checkoutPage.selectShippingMethod();
-        log("✔ Shipping method selected");
+        log("✔ Shipping method: Vande Shipping (pre-selected)");
     }
 
     // ── Payment ───────────────────────────────────────────────────────────────
@@ -85,18 +89,18 @@ public class CheckoutStepDefs {
                 TestDataReader.getPayment("expiryYear"),
                 TestDataReader.getPayment("cvv")
         );
-        log("✔ Payment details filled (test card)");
+        log("✔ Payment filled (test card)");
     }
 
     @When("I fill in the payment details with invalid card")
     public void fillInvalidPayment() {
         checkoutPage.fillPaymentDetails(
-                "1234567890123456",   // invalid card number
+                "1234567890123456",
                 TestDataReader.getPayment("expiryMonth"),
                 TestDataReader.getPayment("expiryYear"),
                 "000"
         );
-        log("✔ Payment details filled (invalid card)");
+        log("✔ Payment filled (invalid card)");
     }
 
     // ── Terms & Submit ────────────────────────────────────────────────────────
@@ -104,14 +108,16 @@ public class CheckoutStepDefs {
     @When("I accept the terms and conditions")
     public void acceptTerms() {
         checkoutPage.acceptTermsAndConditions();
-        log("✔ Terms and conditions accepted");
+        log("✔ Terms accepted");
     }
 
     @When("I click the complete purchase button")
     public void clickPurchase() {
         checkoutPage.clickCompletePurchase();
+        // Explicit Predicate<String> to avoid overload ambiguity
+        Predicate<String> notCheckout = url -> !url.contains("checkout");
         try {
-            page.waitForURL(url -> !url.contains("checkout"),
+            page.waitForURL(notCheckout,
                     new Page.WaitForURLOptions().setTimeout(15_000));
         } catch (Exception e) {
             page.waitForLoadState();
@@ -123,8 +129,8 @@ public class CheckoutStepDefs {
     @When("I click the complete purchase button without filling any fields")
     public void clickPurchaseEmpty() {
         checkoutPage.clickCompletePurchase();
-        page.waitForTimeout(1500); // wait for client-side validation to render
-        log("🔄 Submitted empty form — checking for validation errors");
+        page.waitForTimeout(1500);
+        log("🔄 Submitted empty — checking validation errors");
     }
 
     // ── Assertions ────────────────────────────────────────────────────────────
@@ -144,7 +150,7 @@ public class CheckoutStepDefs {
         if (!thankYouPage.isThankYouPageDisplayed()) {
             upsellPage.navigateThroughAllUpsells();
         } else {
-            log("ℹ Already on thank-you page — skipping upsell navigation");
+            log("ℹ Already on thank-you page — no upsells");
         }
     }
 
@@ -164,7 +170,7 @@ public class CheckoutStepDefs {
         boolean hasErrors = checkoutPage.hasValidationErrors();
         log("🔍 Validation errors present: " + hasErrors);
         assertTrue(hasErrors,
-                "Expected form validation errors to appear after empty submission");
+                "Expected form validation errors after empty submission");
     }
 
     @Then("I should see a payment error message")
@@ -172,6 +178,6 @@ public class CheckoutStepDefs {
         boolean hasError = checkoutPage.hasPaymentError();
         log("🔍 Payment error present: " + hasError);
         assertTrue(hasError,
-                "Expected payment error message for invalid card");
+                "Expected payment error for invalid card");
     }
 }
