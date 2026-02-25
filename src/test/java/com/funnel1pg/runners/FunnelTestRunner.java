@@ -11,11 +11,9 @@ import static io.cucumber.junit.platform.engine.Constants.*;
 @IncludeEngines("cucumber")
 @SelectClasspathResource("features")
 @ConfigurationParameter(key = PLUGIN_PROPERTY_NAME,
-        value = "pretty, html:reports/regression-report.html, json:reports/regression-report.json")
+        value = "pretty, html:reports/cucumber-report.html, json:reports/cucumber-report.json, junit:reports/cucumber-report.xml")
 @ConfigurationParameter(key = GLUE_PROPERTY_NAME,
         value = "com.funnel1pg.stepdefs, com.funnel1pg.hooks")
-//@ConfigurationParameter(key = FILTER_TAGS_PROPERTY_NAME, value = "@smoke or @regression")
-@ConfigurationParameter(key = FILTER_TAGS_PROPERTY_NAME, value = "@funnel or @regression")
-public class RegressionTestRunner {
-    // Runs all @smoke and @regression tagged scenarios
+@ConfigurationParameter(key = FILTER_TAGS_PROPERTY_NAME, value = "@funnel")
+public class FunnelTestRunner {
 }

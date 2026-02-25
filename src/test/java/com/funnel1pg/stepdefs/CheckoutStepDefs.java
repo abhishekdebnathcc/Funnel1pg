@@ -125,6 +125,11 @@ public class CheckoutStepDefs {
     public void selectProduct() {
         checkoutPage.selectFirstAvailableProduct();
         log("✓ Product selected");
+        // Select any cross-sell products present on the page
+        int crossSellsAdded = checkoutPage.selectAllCrossSellProducts();
+        if (crossSellsAdded > 0) {
+            log("✓ Cross-sell products selected: " + crossSellsAdded);
+        }
     }
 
     @When("I fill in the shipping address with valid details")
@@ -150,20 +155,26 @@ public class CheckoutStepDefs {
 
     @When("I fill in the payment details with test card")
     public void fillPayment() {
-        checkoutPage.fillPaymentDetails(
-                TestDataReader.getPayment("cardType"),
-                TestDataReader.getPayment("cardNumber"),
-                TestDataReader.getPayment("expiryMonth"),
-                TestDataReader.getPayment("expiryYear"),
-                TestDataReader.getPayment("cvv")
-        );
-        log("✓ Payment filled");
+        String method = ConfigReader.getPaymentMethod();
+        log("💳 Payment method: " + method.toUpperCase());
+        if ("cod".equalsIgnoreCase(method)) {
+            checkoutPage.selectCashOnDelivery();
+            log("✓ Cash on Delivery selected");
+        } else {
+            checkoutPage.selectAndFillCreditCard(
+                    TestDataReader.getPayment("cardNumber"),
+                    TestDataReader.getPayment("expiryMonth"),
+                    TestDataReader.getPayment("expiryYear"),
+                    TestDataReader.getPayment("cvv")
+            );
+            log("✓ Payment filled (Credit Card)");
+        }
     }
 
     @When("I fill in the payment details with invalid card")
     public void fillInvalidPayment() {
-        checkoutPage.fillPaymentDetails(
-                "visa", "1234567890123456",
+        checkoutPage.selectAndFillCreditCard(
+                "1234567890123456",
                 TestDataReader.getPayment("expiryMonth"),
                 TestDataReader.getPayment("expiryYear"),
                 "000"
@@ -488,6 +499,22 @@ public class CheckoutStepDefs {
                         .createLabel("Order ID: " + orderId,
                                 com.aventstack.extentreports.markuputils.ExtentColor.GREEN));
                 extentTest.log(Status.INFO, html);
+
+                // ── Thank-You page screenshot ──────────────────────────────
+                try {
+                    byte[] png = page.screenshot(
+                            new com.microsoft.playwright.Page.ScreenshotOptions().setFullPage(true));
+                    String safeName = "thankyou_" + System.currentTimeMillis();
+                    String screenshotPath = ConfigReader.getReportsDir()
+                            + "/screenshots/" + safeName + ".png";
+                    java.nio.file.Files.write(java.nio.file.Paths.get(screenshotPath), png);
+                    extentTest.addScreenCaptureFromPath(
+                            "screenshots/" + safeName + ".png",
+                            "📸 Thank-You Page – Order Confirmation");
+                    System.out.println("📸 Thank-you screenshot saved: " + screenshotPath);
+                } catch (Exception se) {
+                    System.out.println("⚠ Could not capture thank-you screenshot: " + se.getMessage());
+                }
             }
 
         } catch (Exception e) {

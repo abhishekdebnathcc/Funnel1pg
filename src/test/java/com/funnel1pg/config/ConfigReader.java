@@ -32,5 +32,14 @@ public class ConfigReader {
     public static int getSlowMo()                { return Integer.parseInt(get("slow.mo")); }
     public static int getTimeout()               { return Integer.parseInt(get("timeout")); }
     public static boolean isScreenshotOnFailure(){ return Boolean.parseBoolean(get("screenshot.on.failure")); }
-    public static String getReportsDir()         { return get("reports.dir"); }
+    public static String getReportsDir()          { return get("reports.dir"); }
+
+    /**
+     * Payment method to use on checkout.
+     * Values: "creditcard" (default) | "cod" (Cash on Delivery)
+     * Override via: -Dpayment.method=cod
+     */
+    public static String getPaymentMethod() {
+        return get("payment.method").isEmpty() ? "creditcard" : get("payment.method").toLowerCase();
+    }
 }

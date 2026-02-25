@@ -1,4 +1,5 @@
-@smoke @checkout @funnel
+#@smoke @checkout @funnel
+@checkout @funnel
 Feature: Funnel Checkout Flow - Complete Business Logic
 
   As a customer

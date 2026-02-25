@@ -1,11 +1,11 @@
 {
   "customer": {
-    "firstName": "Michael",
+    "firstName": "Ray",
     "lastName": "Johnson",
-    "email": "michael.johnson@mailinator.com",
+    "email": "ray@mailinator.com",
     "phone": "4155551234",
-    "address": "1825 Oak Ridge Drive",
-    "city": "San Francisco",
+    "address": "182 Oak Ridge Drive",
+    "city": "Los Angeles",
     "state": "California",
     "zipCode": "94103",
     "country": "United States"

@@ -1,5 +1,6 @@
 package com.funnel1pg.pages;
 
+import com.funnel1pg.utils.PlaywrightManager;
 import com.microsoft.playwright.Page;
 
 public class ThankYouPage extends BasePage {
@@ -101,40 +102,35 @@ public class ThankYouPage extends BasePage {
     // ── Order Detail Extraction ───────────────────────────────────────────────
 
     /**
-     * Order ID — tries:
-     *   1. #order_id_holder text content (set by JS from URL param or mergeSaleSuccess)
-     *   2. ?order_id= URL query parameter directly
-     *   3. sessionStorage / localStorage via JS evaluate
+     * Order ID — retrieval priority:
+     *   1. Network-captured from CRM API response (most reliable — intercepted during submission)
+     *   2. #order_id_holder DOM element text (set by JS from URL param or mergeSaleSuccess event)
+     *   3. ?order_id= URL query parameter directly
      */
     public String getOrderNumber() {
-        // Try element text first
+        // 1. Best source: captured from network response before localStorage was cleared
+        String networkId = PlaywrightManager.getCapturedOrderId();
+        if (networkId != null && !networkId.isEmpty()) {
+            return networkId;
+        }
+
+        // 2. DOM element (populated by JS if ?order_id= is in URL)
         try {
             String text = page.locator(ORDER_ID).textContent().trim();
             if (!text.isEmpty()) return text;
         } catch (Exception ignored) {}
 
-        // Try URL query param directly via JS
+        // 3. URL query param directly
         try {
             Object val = page.evaluate(
-                "new URLSearchParams(window.location.search).get('order_id')"
+                "(function(){ return new URLSearchParams(window.location.search).get('order_id'); })()"
             );
-            if (val != null && !val.toString().isEmpty()) return val.toString();
+            if (val != null && !val.toString().isEmpty() && !val.toString().equals("null")) {
+                return val.toString();
+            }
         } catch (Exception ignored) {}
 
-        // Try crm_response stored in sessionStorage
-        try {
-            Object val = page.evaluate(
-                "(function() {" +
-                "  try {" +
-                "    var d = JSON.parse(sessionStorage.getItem('lastCrmResponse') || '{}');" +
-                "    return d.order_id || d.orderId || '';" +
-                "  } catch(e) { return ''; }" +
-                "})()"
-            );
-            if (val != null && !val.toString().isEmpty()) return val.toString();
-        } catch (Exception ignored) {}
-
-        return "N/A (not returned in URL)";
+        return "N/A – not returned in redirect URL";
     }
 
     public String getOrderPrice() {
