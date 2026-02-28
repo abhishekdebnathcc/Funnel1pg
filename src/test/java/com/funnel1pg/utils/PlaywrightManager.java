@@ -52,6 +52,8 @@ public class PlaywrightManager {
                 BrowserContext ctx = browser.contexts().isEmpty()
                         ? browser.newContext()
                         : browser.contexts().get(0);
+                // Suppress save prompts in CDP mode too
+                suppressSavePrompts(ctx);
                 contextTL.set(ctx);
 
                 Page page = ctx.pages().isEmpty() ? ctx.newPage() : ctx.pages().get(0);
@@ -68,7 +70,19 @@ public class PlaywrightManager {
             // ── Normal mode: launch fresh browser ────────────────────────────
             BrowserType.LaunchOptions opts = new BrowserType.LaunchOptions()
                     .setHeadless(ConfigReader.isHeadless())
-                    .setSlowMo(ConfigReader.getSlowMo());
+                    .setSlowMo(ConfigReader.getSlowMo())
+                    .setArgs(java.util.Arrays.asList(
+                        "--disable-save-password-bubble",
+                        "--disable-features=AutofillServerCommunication",
+                        "--disable-autofill-keyboard-accessory-view",
+                        "--no-default-browser-check",
+                        "--no-first-run",
+                        "--disable-default-apps",
+                        "--disable-infobars",
+                        "--disable-notifications",
+                        "--disable-translate",
+                        "--password-store=basic"
+                    ));
 
             Browser browser;
             switch (ConfigReader.getBrowser().toLowerCase()) {
@@ -80,6 +94,8 @@ public class PlaywrightManager {
 
             BrowserContext ctx = browser.newContext(new Browser.NewContextOptions()
                     .setViewportSize(1440, 900));
+            // Suppress credential/payment save prompts at the context level
+            suppressSavePrompts(ctx);
             contextTL.set(ctx);
 
             Page page = ctx.newPage();
@@ -89,7 +105,43 @@ public class PlaywrightManager {
         }
     }
 
-    /** Registers the network response listener that captures order IDs. */
+    /**
+     * Suppresses browser save-card, save-address, save-password dialogs
+     * by granting/revoking the right permissions and injecting page-level
+     * autofill/autocomplete disablement.
+     */
+    private static void suppressSavePrompts(BrowserContext ctx) {
+        try {
+            // Deny notifications (prevents address-bar prompts)
+            ctx.grantPermissions(java.util.Collections.emptyList());
+
+            // Inject script into every page that disables autocomplete and
+            // removes Chrome's autofill/credential-manager hooks before the
+            // page's own scripts run.
+            ctx.addInitScript(
+                "(function() {" +
+                "  // Prevent credential-manager save prompt" +
+                "  if (window.PasswordCredential) {" +
+                "    Object.defineProperty(window, 'PasswordCredential', {get: function(){return undefined;}});" +
+                "  }" +
+                "  // Prevent PaymentRequest save prompt" +
+                "  if (window.PaymentRequest) {" +
+                "    Object.defineProperty(window, 'PaymentRequest', {get: function(){return undefined;}});" +
+                "  }" +
+                "  // Force autocomplete=off on all inputs after DOM settles" +
+                "  document.addEventListener('DOMContentLoaded', function() {" +
+                "    document.querySelectorAll('input, form').forEach(function(el) {" +
+                "      el.setAttribute('autocomplete', 'off');" +
+                "    });" +
+                "  });" +
+                "})();"
+            );
+        } catch (Exception ignored) {
+            // Suppress prompt setup must never crash the test
+        }
+    }
+
+        /** Registers the network response listener that captures order IDs. */
     private static void attachNetworkListener(Page page) {
         page.onResponse(response -> {
             try {
