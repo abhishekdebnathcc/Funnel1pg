@@ -53,7 +53,34 @@ public class UpsellPage extends BasePage {
      *  2. URL path contains "/upsell"
      *  3. form[name="is-upsell"] present on page
      */
-    public boolean isUpsellPage() {
+    /** Returns "Name  $price" for the upsell product being offered on this page. */
+    public String getUpsellProductName() {
+        try {
+            var prod = page.locator("product").first();
+            String name  = prod.getAttribute("attr-name");
+            String price = prod.getAttribute("attr-sale-price");
+            if (price == null || price.equals("0") || price.isEmpty())
+                price = prod.getAttribute("attr-price");
+            if (name != null && !name.trim().isEmpty())
+                return formatItem(name.trim(), price);
+        } catch (Exception ignored) {}
+        try {
+            String name = page.locator(".title-block__main").first().textContent().trim();
+            if (!name.isEmpty() && !name.equals("PRODUCT NAME")) return name;
+        } catch (Exception ignored) {}
+        try {
+            return page.locator("h1, h2, h3").first().textContent().trim();
+        } catch (Exception ignored) {}
+        return "Upsell Product";
+    }
+
+    private String formatItem(String name, String price) {
+        if (price == null || price.trim().isEmpty() || price.equals("0")) return name;
+        String p = price.trim();
+        return p.startsWith("$") ? name + "  " + p : name + "  $" + p;
+    }
+
+        public boolean isUpsellPage() {
         try {
             // 1. Meta tag check – definitive
             String pageType = page.getAttribute(META_PAGE_TYPE, "content");

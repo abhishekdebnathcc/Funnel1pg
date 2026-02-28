@@ -14,19 +14,8 @@ import io.cucumber.java.Scenario;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.Set;
 
 public class Hooks {
-
-    /**
-     * Scenarios tagged with ANY of these will have their browser closed after completion.
-     * All other scenarios leave the browser window open on screen.
-     */
-    private static final Set<String> CLOSE_BROWSER_TAGS = Set.of(
-            "@validation",
-            "@negative"
-    );
 
     @Before(order = 1)
     public void setUp(Scenario scenario) {
@@ -85,17 +74,10 @@ public class Hooks {
         System.out.println((scenario.isFailed() ? "❌ FAILED" : "✅ PASSED")
                 + " : " + scenario.getName() + "\n");
 
-        // ── Browser lifecycle decision ────────────────────────────────────────
-        Collection<String> tags = scenario.getSourceTagNames();
-        boolean shouldClose = tags.stream().anyMatch(CLOSE_BROWSER_TAGS::contains);
-
-        if (shouldClose) {
-            System.out.println("🔴 Closing browser (scenario tagged @validation / @negative)");
-            PlaywrightManager.closeBrowser();
-        } else {
-            System.out.println("🟢 Leaving browser open (scenario completed, window stays on screen)");
-            // Intentionally do NOT close — the browser window remains visible
-        }
+        // Always close the browser after every scenario so Playwright
+        // resources are fully released before the report flushes.
+        PlaywrightManager.closeBrowser();
+        System.out.println("🔴 Browser closed");
     }
 
     @AfterAll

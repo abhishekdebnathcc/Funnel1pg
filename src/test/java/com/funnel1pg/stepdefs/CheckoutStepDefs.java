@@ -40,6 +40,10 @@ public class CheckoutStepDefs {
     private Page         page;
     private CheckoutPage checkoutPage;
     private UpsellPage   upsellPage;
+
+    // Tracks all products ordered with their type label
+    // Each entry: [label, productName]  e.g. ["Main Product", "Wrist Watch $1.75"]
+    private final java.util.List<String[]> orderedItems = new java.util.ArrayList<>();
     private ThankYouPage thankYouPage;
 
     private boolean onThankYouPage      = false;
@@ -125,21 +129,27 @@ public class CheckoutStepDefs {
     public void selectProduct() {
         checkoutPage.selectFirstAvailableProduct();
         log("✓ Product selected");
-        // Select any cross-sell products present on the page
-        int crossSellsAdded = checkoutPage.selectAllCrossSellProducts();
-        if (crossSellsAdded > 0) {
-            log("✓ Cross-sell products selected: " + crossSellsAdded);
+        // Record main product(s)
+        for (String name : checkoutPage.getSelectedMainProductNames()) {
+            orderedItems.add(new String[]{"Main Product", name});
         }
+        // Click cross-sells then record which were selected
+        checkoutPage.selectAllCrossSellProducts();
+        java.util.List<String> crossNames = checkoutPage.getSelectedCrossSellNames();
+        for (String name : crossNames) {
+            orderedItems.add(new String[]{"Cross-sell", name});
+        }
+        if (!crossNames.isEmpty()) log("✓ Cross-sell products selected: " + crossNames.size());
     }
 
     @When("I fill in the shipping address with valid details")
     public void fillShippingAddress() {
+        DataRandomizer.printIdentity();
         checkoutPage.fillShippingAddress(
                 DataRandomizer.getCustomerField("firstName"),
                 DataRandomizer.getCustomerField("lastName"),
                 DataRandomizer.getCustomerField("address"),
                 DataRandomizer.getCustomerField("city"),
-                DataRandomizer.getCustomerField("state"),
                 DataRandomizer.getCustomerField("zipCode"),
                 DataRandomizer.getCustomerField("email"),
                 DataRandomizer.getCustomerField("phone")
@@ -312,6 +322,7 @@ public class CheckoutStepDefs {
 
             // Step 1: Add product
             log("  ➤ Step 1: Add product (a.btn-upsell)");
+            String upsellName = upsellPage.getUpsellProductName();
             upsellPage.addProductToUpsell();
 
             // Step 2: Select shipping
@@ -321,6 +332,7 @@ public class CheckoutStepDefs {
             // Step 3: Accept & Continue
             log("  ➤ Step 3: Accept & Continue (button.submit-upsell-btn)");
             upsellPage.acceptAndContinue();
+            orderedItems.add(new String[]{"Upsell", upsellName});
 
             // Wait for page to change
             Predicate<String> urlChanged = url -> !url.equals(currentUrl);
@@ -420,6 +432,7 @@ public class CheckoutStepDefs {
             String city      = thankYouPage.getCity();
             String state     = thankYouPage.getState();
             String zip       = thankYouPage.getZip();
+            String country   = thankYouPage.getCountry();
             java.util.List<String> items = thankYouPage.getOrderItemLines();
 
             // ── Console log ──────────────────────────────────────────────────
@@ -436,8 +449,13 @@ public class CheckoutStepDefs {
             System.out.println("│  City          : " + city);
             System.out.println("│  State         : " + state);
             System.out.println("│  Zip           : " + zip);
+            System.out.println("│  Country       : " + country);
             System.out.println("│  ─────────────────────────────────────────────────  │");
-            if (items.isEmpty()) {
+            if (!orderedItems.isEmpty()) {
+                for (String[] entry : orderedItems) {
+                    System.out.printf("│  %-14s: %s%n", entry[0], entry[1]);
+                }
+            } else if (items.isEmpty()) {
                 System.out.println("│  Items         : " + thankYouPage.getOrderItems());
             } else {
                 for (String item : items) System.out.println("│  Item          : " + item);
@@ -450,7 +468,18 @@ public class CheckoutStepDefs {
 
             // ── Extent Report HTML table ─────────────────────────────────────
             StringBuilder itemRows = new StringBuilder();
-            if (items.isEmpty()) {
+            if (!orderedItems.isEmpty()) {
+                for (String[] entry : orderedItems) {
+                    String itemLabel = entry[0];
+                    String itemName  = entry[1];
+                    String color = itemLabel.equals("Main Product") ? "#e8f5e9"
+                                 : itemLabel.equals("Cross-sell")   ? "#fff8e1"
+                                 :                                    "#f3e5f5"; // Upsell
+                    itemRows.append("<tr style='background:").append(color).append(";'>")
+                            .append("<td><em>").append(itemLabel).append("</em></td>")
+                            .append("<td colspan='2'>").append(itemName).append("</td></tr>");
+                }
+            } else if (items.isEmpty()) {
                 itemRows.append("<tr><td>Items</td><td colspan='2'>")
                         .append(thankYouPage.getOrderItems()).append("</td></tr>");
             } else {
@@ -481,6 +510,7 @@ public class CheckoutStepDefs {
                 + "<tr><td>City</td><td colspan='2'>" + city + "</td></tr>"
                 + "<tr><td>State</td><td colspan='2'>" + state + "</td></tr>"
                 + "<tr><td>Zip</td><td colspan='2'>" + zip + "</td></tr>"
+                + "<tr><td>Country</td><td colspan='2'>" + country + "</td></tr>"
                 // Items section
                 + "<tr style='background:#fff3e0;'><td colspan='3'><strong>🛒 Items Ordered</strong></td></tr>"
                 + itemRows

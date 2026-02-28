@@ -46,13 +46,13 @@ public class ReportOpener {
             // `-g` → open without bringing Chrome to the foreground (keeps existing focus)
             // We do NOT call waitFor() – Chrome stays open because we're not the process keeping it alive.
             new ProcessBuilder("open", "-a", "Google Chrome", fileUrl)
-                    .inheritIO()
+                    .redirectErrorStream(false)
                     .start();
             System.out.println("✅ Report opened in Chrome");
         } catch (Exception e) {
             try {
                 // Fallback: use the default browser
-                new ProcessBuilder("open", fileUrl).inheritIO().start();
+                new ProcessBuilder("open", fileUrl).redirectErrorStream(false).start();
                 System.out.println("✅ Report opened in default browser");
             } catch (Exception ex) {
                 System.out.println("⚠ Could not open report browser: " + ex.getMessage());
@@ -63,11 +63,11 @@ public class ReportOpener {
     private static void openWindows(String fileUrl) {
         try {
             new ProcessBuilder("cmd", "/c", "start", "chrome", fileUrl)
-                    .inheritIO().start();
+                    .redirectErrorStream(false).start();
             System.out.println("✅ Report opened in Chrome");
         } catch (Exception e) {
             try {
-                new ProcessBuilder("cmd", "/c", "start", fileUrl).inheritIO().start();
+                new ProcessBuilder("cmd", "/c", "start", fileUrl).redirectErrorStream(false).start();
                 System.out.println("✅ Report opened in default browser");
             } catch (Exception ex) {
                 System.out.println("⚠ Could not open report: " + ex.getMessage());
@@ -77,11 +77,11 @@ public class ReportOpener {
 
     private static void openLinux(String fileUrl) {
         try {
-            new ProcessBuilder("google-chrome", fileUrl).inheritIO().start();
+            new ProcessBuilder("google-chrome", fileUrl).redirectErrorStream(false).start();
             System.out.println("✅ Report opened in Chrome");
         } catch (Exception e) {
             try {
-                new ProcessBuilder("xdg-open", fileUrl).inheritIO().start();
+                new ProcessBuilder("xdg-open", fileUrl).redirectErrorStream(false).start();
                 System.out.println("✅ Report opened in default browser");
             } catch (Exception ex) {
                 System.out.println("⚠ Could not open report: " + ex.getMessage());

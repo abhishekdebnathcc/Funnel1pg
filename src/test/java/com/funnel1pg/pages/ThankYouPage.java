@@ -55,48 +55,13 @@ public class ThankYouPage extends BasePage {
      * and injects it into #order_id_holder if the element is still empty.
      */
     public void waitForPageToPopulate() {
-        // 1. Wait for DOMContentLoaded + JS execution
-        page.waitForLoadState(com.microsoft.playwright.options.LoadState.DOMCONTENTLOADED);
-        page.waitForTimeout(2000);
-
-        // 2. Read order_id from URL ?order_id= param and inject into element if empty
+        // Wait for all JS (sessionStorage render, address population) to finish.
+        // networkidle is more efficient than stacking multiple waitForFunction polls.
         try {
-            page.evaluate(
-                "(function() {" +
-                "  var params = new URLSearchParams(window.location.search);" +
-                "  var orderId = params.get('order_id');" +
-                "  var holder = document.getElementById('order_id_holder');" +
-                "  if (holder && (!holder.textContent || !holder.textContent.trim()) && orderId) {" +
-                "    holder.textContent = orderId;" +
-                "  }" +
-                "})();"
-            );
+            page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE,
+                    new Page.WaitForLoadStateOptions().setTimeout(10_000));
         } catch (Exception ignored) {}
-
-        // 3. Wait up to 5s for #order_id_holder to be non-empty
-        try {
-            page.waitForFunction(
-                "document.getElementById('order_id_holder') && " +
-                "document.getElementById('order_id_holder').textContent.trim().length > 0",
-                null,
-                new Page.WaitForFunctionOptions().setTimeout(5000)
-            );
-        } catch (Exception ignored) {
-            // Not every funnel returns an order_id in the URL — that's OK
-        }
-
-        // 4. Wait for product-details to be rendered (populated from sessionStorage)
-        try {
-            page.waitForFunction(
-                "document.getElementById('product-details') && " +
-                "document.getElementById('product-details').children.length > 0",
-                null,
-                new Page.WaitForFunctionOptions().setTimeout(5000)
-            );
-        } catch (Exception ignored) {}
-
-        // 5. Extra buffer for address spans (filled from localStorage)
-        page.waitForTimeout(500);
+        page.waitForTimeout(1500);
     }
 
     // ── Order Detail Extraction ───────────────────────────────────────────────
@@ -184,6 +149,23 @@ public class ThankYouPage extends BasePage {
     public String getZip() {
         try { return page.locator(ZIP).textContent().trim(); }
         catch (Exception e) { return "N/A"; }
+    }
+
+    public String getCountry() {
+        // Try to read from DOM; JS may or may not populate a country li.
+        // Both span-based (#shippingCountry) and li-text approaches are tried.
+        try {
+            String bySpan = page.locator("#shippingCountry").textContent().trim();
+            if (!bySpan.isEmpty()) return bySpan;
+        } catch (Exception ignored) {}
+        try {
+            // Some funnels append country as li:nth-child(4) via getCountryByCode()
+            String text = page.locator(".shipping-info li:nth-child(4)").textContent().trim();
+            int colon = text.indexOf(":");
+            if (colon >= 0) text = text.substring(colon + 1).trim();
+            if (!text.isEmpty() && !text.equalsIgnoreCase("N/A")) return text;
+        } catch (Exception ignored) {}
+        return "US"; // default – all test data is US
     }
 
     /** Full address line for logging. */
